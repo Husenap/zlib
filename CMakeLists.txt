@@ -5,8 +5,14 @@ project(zlib C)
 
 set(VERSION "1.2.11")
 
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
 option(ASM686 "Enable building i686 assembly implementation")
 option(AMD64 "Enable building amd64 assembly implementation")
+
+option(zlib_BUILD_EXAMPLES "Enable building example projects" OFF)
+option(zlib_BUILD_SHARED_LIBRARY "Enable building as a shared library" OFF)
+set(zlib_FOLDER "zlib" CACHE STRING "The folder that zlib projects will be placed in")
 
 set(INSTALL_BIN_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Installation directory for executables")
 set(INSTALL_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib" CACHE PATH "Installation directory for libraries")
@@ -183,10 +189,13 @@ if(MINGW)
     set(ZLIB_DLL_SRCS ${CMAKE_CURRENT_BINARY_DIR}/zlib1rc.obj)
 endif(MINGW)
 
-add_library(zlib SHARED ${ZLIB_SRCS} ${ZLIB_ASMS} ${ZLIB_DLL_SRCS} ${ZLIB_PUBLIC_HDRS} ${ZLIB_PRIVATE_HDRS})
-add_library(zlibstatic STATIC ${ZLIB_SRCS} ${ZLIB_ASMS} ${ZLIB_PUBLIC_HDRS} ${ZLIB_PRIVATE_HDRS})
-set_target_properties(zlib PROPERTIES DEFINE_SYMBOL ZLIB_DLL)
-set_target_properties(zlib PROPERTIES SOVERSION 1)
+if(zlib_BUILD_SHARED_LIBRARY)
+    add_library(zlib SHARED ${ZLIB_SRCS} ${ZLIB_ASMS} ${ZLIB_DLL_SRCS} ${ZLIB_PUBLIC_HDRS} ${ZLIB_PRIVATE_HDRS})
+    set_target_properties(zlib PROPERTIES DEFINE_SYMBOL ZLIB_DLL)
+    set_target_properties(zlib PROPERTIES SOVERSION 1)
+else()
+    add_library(zlib STATIC ${ZLIB_SRCS} ${ZLIB_ASMS} ${ZLIB_PUBLIC_HDRS} ${ZLIB_PRIVATE_HDRS})
+endif()
 
 if(NOT CYGWIN)
     # This property causes shared libraries on Linux to have the full version
@@ -201,7 +210,7 @@ endif()
 
 if(UNIX)
     # On unix-like platforms the library is almost always called libz
-   set_target_properties(zlib zlibstatic PROPERTIES OUTPUT_NAME z)
+   set_target_properties(zlib PROPERTIES OUTPUT_NAME z)
    if(NOT APPLE)
      set_target_properties(zlib PROPERTIES LINK_FLAGS "-Wl,--version-script,\"${CMAKE_CURRENT_SOURCE_DIR}/zlib.map\"")
    endif()
@@ -211,7 +220,7 @@ elseif(BUILD_SHARED_LIBS AND WIN32)
 endif()
 
 if(NOT SKIP_INSTALL_LIBRARIES AND NOT SKIP_INSTALL_ALL )
-    install(TARGETS zlib zlibstatic
+    install(TARGETS zlib 
         RUNTIME DESTINATION "${INSTALL_BIN_DIR}"
         ARCHIVE DESTINATION "${INSTALL_LIB_DIR}"
         LIBRARY DESTINATION "${INSTALL_LIB_DIR}" )
@@ -226,24 +235,33 @@ if(NOT SKIP_INSTALL_FILES AND NOT SKIP_INSTALL_ALL )
     install(FILES ${ZLIB_PC} DESTINATION "${INSTALL_PKGCONFIG_DIR}")
 endif()
 
+set_target_properties(zlib PROPERTIES FOLDER ${zlib_FOLDER})
+
 #============================================================================
 # Example binaries
 #============================================================================
+if(zlib_BUILD_EXAMPLES)
+    add_executable(example test/example.c)
+    target_link_libraries(example zlib)
+    add_test(example example)
 
-add_executable(example test/example.c)
-target_link_libraries(example zlib)
-add_test(example example)
+    add_executable(minigzip test/minigzip.c)
+    target_link_libraries(minigzip zlib)
 
-add_executable(minigzip test/minigzip.c)
-target_link_libraries(minigzip zlib)
+    set_target_properties(example PROPERTIES FOLDER ${zlib_FOLDER})
+    set_target_properties(minigzip PROPERTIES FOLDER ${zlib_FOLDER})
 
-if(HAVE_OFF64_T)
-    add_executable(example64 test/example.c)
-    target_link_libraries(example64 zlib)
-    set_target_properties(example64 PROPERTIES COMPILE_FLAGS "-D_FILE_OFFSET_BITS=64")
-    add_test(example64 example64)
+    if(HAVE_OFF64_T)
+        add_executable(example64 test/example.c)
+        target_link_libraries(example64 zlib)
+        set_target_properties(example64 PROPERTIES COMPILE_FLAGS "-D_FILE_OFFSET_BITS=64")
+        add_test(example64 example64)
 
-    add_executable(minigzip64 test/minigzip.c)
-    target_link_libraries(minigzip64 zlib)
-    set_target_properties(minigzip64 PROPERTIES COMPILE_FLAGS "-D_FILE_OFFSET_BITS=64")
+        add_executable(minigzip64 test/minigzip.c)
+        target_link_libraries(minigzip64 zlib)
+        set_target_properties(minigzip64 PROPERTIES COMPILE_FLAGS "-D_FILE_OFFSET_BITS=64")
+
+        set_target_properties(example64 PROPERTIES FOLDER ${zlib_FOLDER})
+        set_target_properties(minigzip64 PROPERTIES FOLDER ${zlib_FOLDER})
+    endif()
 endif()
